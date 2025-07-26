@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voice Addition Quiz</title>
+</head>
+<body>
+  <h1>Voice Addition Quiz</h1>
+  <button onclick="startQuiz()">Start Quiz</button>
+  <button onclick="stopQuiz()">Stop Quiz</button>
+  <p id="question">Press "Start Quiz" to begin.</p>
+  <p id="status"></p>
+
+  <script>
+    const synth = window.speechSynthesis;
+    const recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    let running = false;
+    let currentAnswer = 0;
+
+    function say(text) {
+      const utter = new SpeechSynthesisUtterance(text);
+      synth.speak(utter);
+    }
+
+    function askQuestion() {
+      if (!running) return;
+      const a = Math.floor(Math.random() * 10);
+      const b = Math.floor(Math.random() * 10);
+      currentAnswer = a + b;
+      const questionText = `What is ${a} plus ${b}?`;
+      document.getElementById('question').textContent = questionText;
+      say(questionText);
+
+      // Wait a bit for the question to finish being spoken before listening
+      setTimeout(() => {
+        recognition.start();
+      }, 2000);
+    }
+
+    recognition.onresult = function(event) {
+      const transcript = event.results[0][0].transcript.trim();
+      document.getElementById('status').textContent = `You said: "${transcript}"`;
+
+      const spokenNumber = parseInt(transcript);
+      if (!isNaN(spokenNumber)) {
+        if (spokenNumber === currentAnswer) {
+          say("Correct!");
+        } else {
+          say(`Incorrect. The correct answer was ${currentAnswer}.`);
+        }
+      } else {
+        say("Sorry, I didn't catch a number. Let's try another.");
+      }
+
+      setTimeout(askQuestion, 3000); // Ask another after feedback
+    };
+
+    recognition.onerror = function(event) {
+      say("Sorry, I didn't catch that. Let's try again.");
+      setTimeout(askQuestion, 3000);
+    };
+
+    function startQuiz() {
+      if (running) return;
+      running = true;
+      say("Let's begin the quiz.");
+      askQuestion();
+    }
+
+    function stopQuiz() {
+      running = false;
+      recognition.stop();
+      say("Quiz stopped. Good job!");
+      document.getElementById('question').textContent = 'Quiz stopped.';
+    }
+  </script>
+</body>
+</html>

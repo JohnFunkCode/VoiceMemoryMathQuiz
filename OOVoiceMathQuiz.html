@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Memory Math Quiz Game (Voice)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        #question {
+            font-size: 1.6em;
+            margin-bottom: 20px;
+        }
+        #feedback {
+            font-size: 1.4em;
+            margin-top: 10px;
+        }
+        #score, #spoken {
+            margin-top: 20px;
+            font-size: 1.2em;
+        }
+        button, select {
+            font-size: 1em;
+            margin: 10px;
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="question">Press Start to begin!</div>
+<div id="feedback"></div>
+<div id="spoken">You said: <em>(waiting for input)</em></div>
+<div id="score">Score: 0 correct, 0 incorrect</div>
+
+<label for="numQuestions">Questions per turn:</label>
+<select id="numQuestions">
+    <option value="1">1</option>
+    <option value="2" selected>2</option>
+    <option value="3">3</option>
+    <option value="4">4</option>
+    <option value="5">5</option>
+</select>
+
+<br>
+<button onclick="game.start()">Start</button>
+<button onclick="game.stop()">Stop</button>
+<button id="toggleBtn" onclick="game.toggleQuestionVisibility()">Hide Question</button>
+
+<script>
+    class GameEngine {
+        constructor() {
+            this.ui = new UIManager();
+            this.questionGen = new QuestionGenerator();
+            this.speech = new SpeechRecognizer(this);
+            this.state = new GameState();
+            this.isRunning = false;
+            this.questionsPerTurn = 2;
+            this.questionVisible = true;
+        }
+
+        start() {
+            this.isRunning = true;
+            this.questionsPerTurn = parseInt(document.getElementById('numQuestions').value, 10);
+            this.state.reset();
+            this.ui.updateScore(this.state.correct, this.state.incorrect);
+            this.ui.updateSpokenText("(waiting for input)");
+            this.nextQuestion();
+        }
+
+        stop() {
+            this.isRunning = false;
+            this.speech.stop();
+            this.ui.displayQuestion("Game stopped.");
+            this.ui.showMessage("Final Score:");
+            this.ui.updateScore(this.state.correct, this.state.incorrect);
+        }
+
+        nextQuestion() {
+            if (!this.isRunning) return;
+
+            const questionSet = this.questionGen.generateSet(this.questionsPerTurn);
+            this.state.setCurrentQuestions(questionSet);
+
+            const questionText = questionSet.map(q => `${q.a} plus ${q.b}`).join(', and ');
+            const spokenText = `What is ${questionText}?`;
+
+            if (this.questionVisible) {
+                this.ui.displayQuestion(spokenText);
+            } else {
+                this.ui.displayQuestion('');
+            }
+
+            this.ui.speak(spokenText, () => {
+                this.ui.showMessage("Listening...");
+                this.speech.listen();
+            });
+        }
+
+        handleAnswer(recognizedText) {
+            this.ui.updateSpokenText(recognizedText);
+            const correct = this.state.checkAnswer(recognizedText);
+            this.ui.showFeedback(correct);
+            this.state.updateScore(correct);
+            this.ui.updateScore(this.state.correct, this.state.incorrect);
+
+            if (correct) {
+                this.ui.speak("Correct!", () => setTimeout(() => this.nextQuestion(), 2000));
+            } else {
+                const expectedResponses = this.state.currentQuestions
+                    .map(q => `${q.a} plus ${q.b} is ${q.sum}`)
+                    .join(', and ');
+                const response = `Incorrect. The correct answers are: ${expectedResponses}.`;
+                this.ui.speak(response, () => setTimeout(() => this.nextQuestion(), 3000));
+            }
+        }
+
+        toggleQuestionVisibility() {
+            this.questionVisible = !this.questionVisible;
+            this.ui.updateToggleButton(this.questionVisible);
+
+            if (this.questionVisible && this.state.currentQuestions.length > 0) {
+                const questionText = this.state.currentQuestions
+                    .map(q => `${q.a} plus ${q.b}`).join(', and ');
+                this.ui.displayQuestion(`What is ${questionText}?`);
+            } else {
+                this.ui.displayQuestion('');
+            }
+        }
+    }
+
+    class QuestionGenerator {
+        generateSet(count) {
+            const questions = [];
+            for (let i = 0; i < count; i++) {
+                const a = Math.floor(Math.random() * 10);
+                const b = Math.floor(Math.random() * 10);
+                questions.push({ a, b, sum: a + b });
+            }
+            return questions;
+        }
+    }
+
+    class SpeechRecognizer {
+        constructor(game) {
+            this.game = game;
+            this.recognition = new webkitSpeechRecognition();
+            this.recognition.lang = 'en-US';
+            this.recognition.continuous = false;
+            this.recognition.interimResults = false;
+
+            this.recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('Recognized:', transcript);
+                this.game.handleAnswer(transcript);
+            };
+
+            this.recognition.onerror = (e) => {
+                console.error('Speech error:', e);
+            };
+        }
+
+        listen() {
+            try {
+                this.recognition.start();
+            } catch (e) {
+                console.warn('Recognition already started.');
+            }
+        }
+
+        stop() {
+            this.recognition.stop();
+        }
+    }
+
+    class UIManager {
+        constructor() {
+            this.questionEl = document.getElementById('question');
+            this.feedbackEl = document.getElementById('feedback');
+            this.scoreEl = document.getElementById('score');
+            this.spokenEl = document.getElementById('spoken');
+            this.toggleBtn = document.getElementById('toggleBtn');
+        }
+
+        displayQuestion(text) {
+            this.questionEl.textContent = text;
+            this.feedbackEl.textContent = '';
+            this.spokenEl.innerHTML = 'You said: <em>(waiting for input)</em>';
+        }
+
+        showFeedback(isCorrect) {
+            this.feedbackEl.textContent = isCorrect ? '✅ Correct!' : '❌ Incorrect.';
+            this.feedbackEl.style.color = isCorrect ? 'green' : 'red';
+        }
+
+        updateScore(correct, incorrect) {
+            this.scoreEl.textContent = `Score: ${correct} correct, ${incorrect} incorrect`;
+        }
+
+        updateSpokenText(text) {
+            this.spokenEl.innerHTML = `You said: <strong>${text}</strong>`;
+        }
+
+        showMessage(msg) {
+            this.feedbackEl.textContent = msg;
+            this.feedbackEl.style.color = 'blue';
+        }
+
+        speak(text, callback) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.onend = callback;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        updateToggleButton(isVisible) {
+            this.toggleBtn.textContent = isVisible ? 'Hide Question' : 'Show Question';
+        }
+    }
+
+    class GameState {
+        constructor() {
+            this.reset();
+        }
+
+        reset() {
+            this.correct = 0;
+            this.incorrect = 0;
+            this.currentQuestions = [];
+        }
+
+        setCurrentQuestions(questions) {
+            this.currentQuestions = questions;
+        }
+
+        normalize(text) {
+            return text
+                .toLowerCase()
+                .replace(/[^\w\s+]/g, '')      // remove punctuation except "+"
+                .replace(/\+/g, ' plus ')      // convert "+" to "plus"
+                .replace(/\s+/g, ' ')          // collapse whitespace
+                .trim();
+        }
+
+        checkAnswer(transcript) {
+            const normalized = this.normalize(transcript);
+
+            for (const q of this.currentQuestions) {
+                const expected = `${q.a} plus ${q.b} is ${q.sum}`;
+                if (!normalized.includes(expected)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        updateScore(correct) {
+            if (correct) {
+                this.correct++;
+            } else {
+                this.incorrect++;
+            }
+        }
+    }
+
+    const game = new GameEngine();
+</script>
+
+</body>
+</html>
