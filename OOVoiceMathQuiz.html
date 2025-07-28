@@ -26,6 +26,36 @@
             margin: 10px;
             padding: 10px 20px;
         }
+        .green-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .green-btn:hover {
+            background-color: #218838;
+        }
+        .red-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .red-btn:hover {
+            background-color: #b52a37;
+        }
+        .orange-btn {
+            background-color: #ffc107;
+            color: black;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .orange-btn:hover {
+            background-color: #e0a800;
+        }
     </style>
 </head>
 <body>
@@ -45,9 +75,9 @@
 </select>
 
 <br>
-<button onclick="game.start()">Start</button>
-<button onclick="game.stop()">Stop</button>
-<button id="toggleBtn" onclick="game.toggleQuestionVisibility()">Hide Question</button>
+<button class="green-btn" onclick="game.start()">Start</button>
+<button class="red-btn" onclick="game.stop()">Stop</button>
+<button class="orange-btn" id="toggleBtn" onclick="game.toggleQuestionVisibility()">Hide Question</button>
 
 <script>
     class GameEngine {
@@ -90,7 +120,7 @@
             if (this.questionVisible) {
                 this.ui.displayQuestion(spokenText);
             } else {
-                this.ui.displayQuestion('');
+                this.ui.displayQuestion('Question hidden to test your memory. Press "Show Question" to reveal.');
             }
 
             this.ui.speak(spokenText, () => {
@@ -126,7 +156,7 @@
                     .map(q => `${q.a} plus ${q.b}`).join(', and ');
                 this.ui.displayQuestion(`What is ${questionText}?`);
             } else {
-                this.ui.displayQuestion('');
+                this.ui.displayQuestion('Question hidden to test your memory. Press "Show Question" to reveal.');
             }
         }
     }
